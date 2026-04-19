@@ -1,11 +1,407 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        PakePlus
-    </body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>八年级体质健康测试系统</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="chart.min.js"></script>
+    <script src="xlsx.full.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- 顶部导航 -->
+        <header class="header">
+            <h1>八年级体质健康测试系统</h1>
+            <nav class="nav-tabs">
+                <button class="nav-btn active" data-page="classes">班级管理</button>
+                <button class="nav-btn" data-page="students">学生管理</button>
+                <button class="nav-btn" data-page="input">成绩录入</button>
+                <button class="nav-btn" data-page="records">测试记录</button>
+                <button class="nav-btn" data-page="radar">雷达图</button>
+                <button class="nav-btn" data-page="analysis">成绩分析</button>
+            </nav>
+        </header>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 班级管理页面 -->
+            <section id="page-classes" class="page active">
+                <div class="page-header">
+                    <h2>班级管理</h2>
+                    <button class="btn btn-primary" onclick="showCreateClassModal()">+ 创建班级</button>
+                </div>
+                <div id="class-list" class="card-list"></div>
+            </section>
+
+            <!-- 学生管理页面 -->
+            <section id="page-students" class="page">
+                <div class="page-header">
+                    <h2>学生管理</h2>
+                    <div class="header-actions">
+                        <select id="student-class-select" class="select">
+                            <option value="">请选择班级</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="showImportModal()">导入学生</button>
+                        <button class="btn btn-primary" onclick="showAddStudentModal()">+ 添加学生</button>
+                        <button class="btn btn-danger" onclick="showClearScoresModal()">清除成绩</button>
+                    </div>
+                </div>
+                <div id="student-list" class="table-container"></div>
+            </section>
+
+            <!-- 成绩录入页面 -->
+            <section id="page-input" class="page">
+                <div class="page-header">
+                    <h2>成绩录入</h2>
+                    <div class="header-actions">
+                        <select id="input-class-select" class="select">
+                            <option value="">请选择班级</option>
+                        </select>
+                        <div class="input-mode-toggle">
+                            <button class="mode-btn active" data-mode="student">按学生录入</button>
+                            <button class="mode-btn" data-mode="project">按项目录入</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="input-container"></div>
+            </section>
+
+            <!-- 测试记录页面 -->
+            <section id="page-records" class="page">
+                <div class="page-header">
+                    <h2>测试记录</h2>
+                    <div class="header-actions">
+                        <select id="record-class-select" class="select">
+                            <option value="">请选择班级</option>
+                        </select>
+                        <button class="btn btn-success" onclick="exportToExcel()">导出Excel</button>
+                    </div>
+                </div>
+                <div id="records-container" class="table-container"></div>
+            </section>
+
+            <!-- 雷达图页面 -->
+            <section id="page-radar" class="page">
+                <div class="page-header">
+                    <h2>成绩雷达图</h2>
+                    <div class="header-actions">
+                        <select id="radar-class-select" class="select">
+                            <option value="">请选择班级</option>
+                        </select>
+                        <select id="radar-student-select" class="select" style="display:none;">
+                            <option value="">请选择学生</option>
+                        </select>
+                        <button class="btn btn-primary" id="radar-compare-btn" onclick="showStudentCompareModal()" style="display:none;">添加对比</button>
+                    </div>
+                </div>
+                <div id="radar-container">
+                    <div id="radar-empty-state" class="empty-state">
+                        <p>请选择班级和学生查看雷达图</p>
+                    </div>
+                    <canvas id="radarChart" style="display:none;"></canvas>
+                </div>
+                <div id="radar-score-details" style="display:none;">
+                    <!-- 成绩详情表格将在这里显示 -->
+                </div>
+            </section>
+
+            <!-- 成绩分析页面 -->
+            <section id="page-analysis" class="page">
+                <div class="page-header">
+                    <h2>学生体质健康数据统计</h2>
+                    <div class="header-actions">
+                        <select id="analysis-class-select" class="select">
+                            <option value="">请选择班级</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="analysis-container">
+                    <div id="analysis-empty-state" class="empty-state">
+                        <p>请选择班级查看成绩分析</p>
+                    </div>
+                    <div id="analysis-content" style="display:none;">
+                        <!-- 班级满分率统计 -->
+                        <div class="analysis-section">
+                            <h3>班级满分率统计</h3>
+                            <div id="class-full-score-rate" style="padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white; text-align: center;">
+                                <div style="font-size: 1.1rem; margin-bottom: 8px;">满分率（总分≥80分）</div>
+                                <div style="font-size: 2.5rem; font-weight: bold;" id="full-rate-value">--</div>
+                                <div style="font-size: 0.9rem; margin-top: 8px; opacity: 0.9;">
+                                    <span id="full-count">0</span> 人 / <span id="total-count">0</span> 人
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 总分统计表格 -->
+                        <div class="analysis-section">
+                            <h3>总分等级统计</h3>
+                            <div class="table-container">
+                                <table id="total-score-table" class="analysis-table">
+                                    <thead>
+                                        <tr>
+                                            <th rowspan="2">性别</th>
+                                            <th colspan="2">不及格<br>(<60)</th>
+                                            <th colspan="2">及格<br>(60-79)</th>
+                                            <th colspan="2">良好<br>(80-89)</th>
+                                            <th colspan="2">优秀<br>(90-100)</th>
+                                            <th rowspan="2">平均分</th>
+                                            <th rowspan="2">考试人数</th>
+                                        </tr>
+                                        <tr>
+                                            <th>人数</th>
+                                            <th>比率</th>
+                                            <th>人数</th>
+                                            <th>比率</th>
+                                            <th>人数</th>
+                                            <th>比率</th>
+                                            <th>人数</th>
+                                            <th>比率</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 男生各项目统计 -->
+                        <div class="analysis-section" id="male-analysis-section">
+                            <h3>男生各项目成绩统计</h3>
+                            <div class="table-container">
+                                <table id="male-project-table" class="analysis-table diagonal-header-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="diagonal-header">
+                                                <div class="diagonal-line"></div>
+                                                <div class="header-project">项目</div>
+                                                <div class="header-range">分数段</div>
+                                            </th>
+                                            <th colspan="3">50米跑</th>
+                                            <th colspan="3">立定跳远</th>
+                                            <th colspan="3">坐位体前屈</th>
+                                            <th colspan="3">引体向上</th>
+                                            <th colspan="3">1000米跑</th>
+                                        </tr>
+                                        <tr>
+                                            <th>区间人数 / 考试人数 / 率</th>
+                                            <th>区间人数</th>
+                                            <th>考试人数</th>
+                                            <th>率</th>
+                                            <th>区间人数</th>
+                                            <th>考试人数</th>
+                                            <th>率</th>
+                                            <th>区间人数</th>
+                                            <th>考试人数</th>
+                                            <th>率</th>
+                                            <th>区间人数</th>
+                                            <th>考试人数</th>
+                                            <th>率</th>
+                                            <th>区间人数</th>
+                                            <th>考试人数</th>
+                                            <th>率</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 女生各项目统计 -->
+                        <div class="analysis-section" id="female-analysis-section">
+                            <h3>女生各项目成绩统计</h3>
+                            <div class="table-container">
+                                <table id="female-project-table" class="analysis-table diagonal-header-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="diagonal-header">
+                                                <div class="diagonal-line"></div>
+                                                <div class="header-project">项目</div>
+                                                <div class="header-range">分数段</div>
+                                            </th>
+                                            <th colspan="3">50米跑</th>
+                                            <th colspan="3">立定跳远</th>
+                                            <th colspan="3">坐位体前屈</th>
+                                            <th colspan="3">仰卧起坐</th>
+                                            <th colspan="3">800米跑</th>
+                                        </tr>
+                                        <tr>
+                                            <th>区间人数 / 考试人数 / 率</th>
+                                            <th>区间人数</th>
+                                            <th>考试人数</th>
+                                            <th>率</th>
+                                            <th>区间人数</th>
+                                            <th>考试人数</th>
+                                            <th>率</th>
+                                            <th>区间人数</th>
+                                            <th>考试人数</th>
+                                            <th>率</th>
+                                            <th>区间人数</th>
+                                            <th>考试人数</th>
+                                            <th>率</th>
+                                            <th>区间人数</th>
+                                            <th>考试人数</th>
+                                            <th>率</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 可视化图表 -->
+                        <div class="analysis-section">
+                            <h3>成绩分布可视化</h3>
+                            <div id="analysis-charts">
+                                <canvas id="scoreDistributionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 创建班级弹窗 -->
+        <div id="create-class-modal" class="modal">
+            <div class="modal-content">
+                <h3>创建班级</h3>
+                <input type="text" id="class-name-input" placeholder="请输入班级名称（如：八年级1班）">
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('create-class-modal')">取消</button>
+                    <button class="btn btn-primary" onclick="createClass()">创建</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 编辑班级弹窗 -->
+        <div id="edit-class-modal" class="modal">
+            <div class="modal-content">
+                <h3>修改班级名称</h3>
+                <input type="text" id="edit-class-name-input" placeholder="请输入新班级名称">
+                <input type="hidden" id="edit-class-id">
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('edit-class-modal')">取消</button>
+                    <button class="btn btn-primary" onclick="updateClass()">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 添加学生弹窗 -->
+        <div id="add-student-modal" class="modal">
+            <div class="modal-content">
+                <h3>添加学生</h3>
+                <input type="text" id="student-name-input" placeholder="请输入学生姓名">
+                <select id="student-gender-input" class="select">
+                    <option value="">请选择性别</option>
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                </select>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('add-student-modal')">取消</button>
+                    <button class="btn btn-primary" onclick="addStudent()">添加</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 导入学生弹窗 -->
+        <div id="import-modal" class="modal">
+            <div class="modal-content">
+                <h3>批量导入学生</h3>
+                <p class="hint">格式：姓名 性别（每行一个学生，如：张三 男 或 张三,男）</p>
+                <textarea id="import-textarea" rows="10" placeholder="张三 男&#10;李四 女&#10;王五 男"></textarea>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('import-modal')">取消</button>
+                    <button class="btn btn-primary" onclick="importStudents()">导入</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 编辑学生弹窗 -->
+        <div id="edit-student-modal" class="modal">
+            <div class="modal-content">
+                <h3>编辑学生信息</h3>
+                <input type="text" id="edit-student-name-input" placeholder="请输入学生姓名">
+                <select id="edit-student-gender-input" class="select">
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                </select>
+                <input type="hidden" id="edit-student-id">
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('edit-student-modal')">取消</button>
+                    <button class="btn btn-primary" onclick="updateStudent()">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 选择对比学生弹窗 -->
+        <div id="compare-modal" class="modal">
+            <div class="modal-content modal-large">
+                <h3>选择对比学生（最多3人）</h3>
+                <div id="compare-student-list" class="student-select-list"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('compare-modal')">取消</button>
+                    <button class="btn btn-primary" onclick="confirmCompare()">确定</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 清除成绩弹窗 -->
+        <div id="clear-scores-modal" class="modal">
+            <div class="modal-content">
+                <h3>清除测试成绩</h3>
+                <p class="hint" style="color: #f44336; margin-bottom: 16px;">⚠️ 此操作不可恢复，请谨慎操作！</p>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">选择清除范围：</label>
+                    <select id="clear-scope-select" class="select" onchange="onClearScopeChange()" style="width: 100%;">
+                        <option value="">请选择</option>
+                        <option value="all">清除所有成绩</option>
+                        <option value="project">清除指定项目</option>
+                        <option value="student">清除指定学生</option>
+                    </select>
+                </div>
+
+                <!-- 项目选择（清除指定项目时显示） -->
+                <div id="clear-project-select-container" style="margin-bottom: 16px; display: none;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">选择要清除的项目：</label>
+                    <select id="clear-project-select" class="select" style="width: 100%;">
+                        <option value="">请选择项目</option>
+                        <option value="all">所有项目</option>
+                        <option value="bmi">BMI（包括身高体重）</option>
+                        <option value="vitalCapacity">肺活量</option>
+                        <option value="run50m">50米跑</option>
+                        <option value="sitReach">坐位体前屈</option>
+                        <option value="longJump">立定跳远</option>
+                        <option value="pullUp">引体向上</option>
+                        <option value="sitUp">仰卧起坐</option>
+                        <option value="run1000m">1000米跑</option>
+                        <option value="run800m">800米跑</option>
+                    </select>
+                </div>
+
+                <!-- 学生选择（清除指定学生时显示） -->
+                <div id="clear-student-select-container" style="margin-bottom: 16px; display: none;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">选择要清除成绩的学生：</label>
+                    <select id="clear-student-select" class="select" style="width: 100%;">
+                        <option value="">请选择学生</option>
+                        <option value="all">所有学生</option>
+                    </select>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeModal('clear-scores-modal')">取消</button>
+                    <button class="btn btn-danger" onclick="confirmClearScores()">确认清除</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 提示消息 -->
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <script src="standards.js"></script>
+    <script src="pakeplus-bridge.js"></script>
+    <script src="app.js"></script>
+</body>
 </html>
